@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature
+        android:name="android.hardware.camera"
+        android:required="false" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+
+    <queries>
+        <package android:name="com.google.android.gms" />
+        <package android:name="com.google.android.gsf" />
+        <package android:name="com.android.vending" />
+        <package android:name="com.spotify.music" />
+        <intent>
+            <action android:name="com.spotify.music.service.SPOTIFY_SERVICE" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="http" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@drawable/emoodtune_logo"
+        android:label="@string/app_name"
+        android:roundIcon="@drawable/emoodtune_logo"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.eMoodtune">
+
+        <activity
+            android:name=".SpotifyCallbackActivity"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+
+                <data
+                    android:scheme="moodsync"
+                    android:host="callback"/>
+            </intent-filter>
+
+        </activity>
+
+        <activity
+            android:name=".HomeActivity"
+            android:launchMode="singleTop" />
+        <activity android:name=".ScanActivity" />
+        <activity android:name=".SettingsActivity" />
+        <activity android:name=".RegisterActivity" />
+        <activity android:name=".HistoryActivity" />
+        <activity android:name=".PlaylistActivity" />
+        <activity android:name=".AccountInfoActivity" />
+        <activity android:name=".FaqActivity" />
+        <activity android:name=".FeedbackActivity" />
+        <activity android:name=".ForecastActivity" />
+        <activity android:name=".StatsActivity" />
+        <activity android:name=".NotificationsActivity" />
+        <activity android:name=".QueueActivity" />
+
+        <meta-data
+            android:name="com.google.android.gms.version"
+            android:value="@integer/google_play_services_version" />
+
+        <service
+            android:name=".SpotifyBackgroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback" />
+
+        <activity
+            android:name=".LoginActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+
+</manifest>
