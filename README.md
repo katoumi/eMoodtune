@@ -40,5 +40,10 @@ SPOTIFY_CLIENT_ID=YOUR_SPOTIFY_CLIENT_ID
 
 ---
 
-##  License & Intellectual Property
-This repository contains capstone project source code. All rights reserved.
+##  License & Copyright
+
+© 2026 eMoodtune. All Rights Reserved.
+
+This repository and its contents are the intellectual property of eMoodtune. 
+This code is provided for portfolio and educational evaluation purposes only. 
+You may not copy, reproduce, distribute, publish, display, perform, modify, create derivative works, transmit, or in any way exploit any such content, nor may you distribute any part of this content over any network, including a local area network, sell or offer it for sale, or use such content to construct any kind of database.
