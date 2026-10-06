@@ -19,10 +19,13 @@ object BackgroundHistoryLogger {
     private const val PREF_HOME_STATE = "moodsync_home_state"
     private const val KEY_LAST_LOGGED_URI = "last_logged_uri"
     
-    // We use a dedicated scope since this operates in the background independently of UI lifecycle
+    // Dedicated scope for background operations
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    
     private var loggingJob: Job? = null
     private var currentTrackUri: String = ""
+    private var currentSessionId: String = ""
+    private var hasLoggedCurrent: Boolean = false
 
     fun checkAndLogHistory(context: Context, state: PlayerState) {
         val track = state.track ?: return
@@ -30,82 +33,63 @@ object BackgroundHistoryLogger {
         val songTitle = track.name
         val artist = track.artist.name
 
-        // Guard against empty track metadata during transitions
+        // GUARD: Ignore empty transition states
         if (uri.isBlank() || songTitle.isBlank() || artist.isBlank()) {
             return
         }
 
-        // If track changed or paused, cancel any pending log timer
-        if (uri != currentTrackUri || state.isPaused) {
+        // 1. Detect New Track
+        if (uri != currentTrackUri) {
+            Log.d("BackgroundHistoryLogger", "New track detected: $songTitle")
             loggingJob?.cancel()
             currentTrackUri = uri
+            currentSessionId = UUID.randomUUID().toString()
+            hasLoggedCurrent = false
+            
+            // Sync with global state for UI skips
+            NowPlayingState.activeSessionId = currentSessionId
+            NowPlayingState.currentTrackMood = null 
         }
 
-        // If paused, we do nothing more
-        if (state.isPaused) {
+        // 2. Pause/Logged Guard
+        if (state.isPaused || hasLoggedCurrent) {
+            loggingJob?.cancel()
             return
         }
 
-        val remainingMsUntilLog = 7000L - state.playbackPosition
-
-        if (remainingMsUntilLog <= 0) {
-            // Already past 7 seconds, log immediately
-            executeLog(context, uri, songTitle, artist, track.duration)
-        } else {
-            // Wait until the 7-second mark, then log
-            if (loggingJob?.isActive != true) {
-                loggingJob = scope.launch {
-                    delay(remainingMsUntilLog)
-                    executeLog(context, uri, songTitle, artist, track.duration)
-                }
-            }
-        }
+        // 3. 0-Second Timer Logic (Log Instantly)
+        executeLog(context, track)
     }
 
-    private fun executeLog(context: Context, uri: String, songTitle: String, artist: String, durationMs: Long) {
+    private fun executeLog(context: Context, track: com.spotify.protocol.types.Track) {
+        if (hasLoggedCurrent) return
+        hasLoggedCurrent = true
+
         val now = System.currentTimeMillis()
+        val uri = track.uri
+        val songTitle = track.name
+        val artist = track.artist.name
 
-        // 1. Prevent duplicate logs for the SAME physical play session of a song
-        if (NowPlayingState.hasLoggedCurrentTrack && uri == NowPlayingState.lastLoggedUri) {
-            return
-        }
-
-        // 2. Prevent rapid re-logging of different songs (cooldown)
-        val isSameSong = uri == NowPlayingState.lastLoggedUri
-        val isWithinWindow = now - NowPlayingState.lastLoggedTimeMs < 15_000L // 15s window for diff songs
-
-        if (isSameSong && isWithinWindow) {
-            return
-        }
-
-        NowPlayingState.lastLoggedUri = uri
-        NowPlayingState.lastLoggedTimeMs = now
-        NowPlayingState.hasLoggedCurrentTrack = true
-        
         // Persist the log state so it survives process kill
         context.getSharedPreferences(PREF_HOME_STATE, Context.MODE_PRIVATE).edit()
             .putString(KEY_LAST_LOGGED_URI, uri)
             .apply()
-            
-        val effectiveSessionId = if (NowPlayingState.activeSessionId.isNotBlank()) {
-            NowPlayingState.activeSessionId
-        } else {
-            val newId = UUID.randomUUID().toString()
-            NowPlayingState.activeSessionId = newId
-            newId
-        }
 
-        val moodBefore = NowPlayingState.moodBefore
         val source = NowPlayingState.source
-        val durationSeconds = (durationMs / 1000L).toInt().coerceAtLeast(0)
+        val durationSeconds = (track.duration / 1000L).toInt().coerceAtLeast(0)
         val durationString = secondsToTime(durationSeconds)
+        val sessionId = currentSessionId
+
+        // 100% Sync with HomeActivity: Read the active mood directly from SharedPreferences
+        val prefs = context.getSharedPreferences(PREF_HOME_STATE, Context.MODE_PRIVATE)
+        val activeMood = prefs.getString("last_final_mood", "calm") ?: "calm"
 
         scope.launch {
             try {
-                if (NowPlayingState.currentTrackMood == null) {
-                    NowPlayingState.currentTrackMood = determineMusicalMood(context, uri) ?: moodBefore
-                }
-                val moodToLog = NowPlayingState.currentTrackMood!!
+                // We use the active mood as the primary emotion for the history log.
+                // This guarantees that if the user scans "Sad", the history saves "Sad".
+                val moodToLog = activeMood
+                val moodBefore = activeMood
 
                 val date = Date(now)
                 val displayFormatter = SimpleDateFormat("MMM d, h:mm a", Locale.getDefault())
@@ -131,7 +115,7 @@ object BackgroundHistoryLogger {
                     timeOfDay = timeOfDay,
                     source = source,
                     moodBefore = moodBefore,
-                    sessionId = effectiveSessionId,
+                    sessionId = sessionId,
                     wasPlayed = true
                 )
 
@@ -149,24 +133,6 @@ object BackgroundHistoryLogger {
             } catch (e: Exception) {
                 Log.e("BackgroundHistoryLogger", "Error logging history in background", e)
             }
-        }
-    }
-
-    private suspend fun determineMusicalMood(context: Context, uri: String): String? {
-        val trackId = uri.split(":").lastOrNull() ?: return null
-        val token = SpotifySessionManager.getValidAccessToken(context) ?: return null
-
-        val features = SpotifyRepository.getAudioFeatures(token, trackId) ?: return null
-
-        val valence = features.first
-        val energy = features.second
-
-        return when {
-            valence > 0.5 && energy > 0.5 -> "happy"
-            valence < 0.5 && energy < 0.5 -> "sad"
-            valence < 0.5 && energy > 0.5 -> "angry"
-            valence > 0.5 && energy < 0.5 -> "calm"
-            else -> "calm"
         }
     }
 

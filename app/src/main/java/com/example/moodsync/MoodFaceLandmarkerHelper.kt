@@ -13,7 +13,7 @@ import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarker
 import com.google.mediapipe.tasks.vision.facelandmarker.FaceLandmarkerResult
 
 class MoodFaceLandmarkerHelper(
-    context: Context,
+    private val context: Context,
     private val onMoodResult: (MoodResult) -> Unit,
     private val onError: (String) -> Unit
 ) {
@@ -39,8 +39,28 @@ class MoodFaceLandmarkerHelper(
     private var faceLandmarker: FaceLandmarker? = null
     private val frameMoods = mutableListOf<FrameMood>()
 
+    var isCalibrationMode: Boolean = false
+    var lastSignature: FaceCalibrationManager.FaceSignature? = null
+    private var lastRawScores: Map<String, Float> = emptyMap()
+    private var baselineScores: Map<String, Float> = emptyMap()
+    private var ownerSignature: FaceCalibrationManager.FaceSignature? = null
+
     init {
         setup(context)
+        baselineScores = FaceCalibrationManager.getBaselineBlendshapes(context)
+        ownerSignature = FaceCalibrationManager.getFaceSignature(context)
+    }
+
+    fun saveCurrentAsCalibration(): Boolean {
+        val sig = lastSignature
+        val raw = lastRawScores
+        if (sig != null && raw.isNotEmpty()) {
+            FaceCalibrationManager.saveCalibration(context, raw, sig)
+            baselineScores = raw
+            ownerSignature = sig
+            return true
+        }
+        return false
     }
 
     private fun setup(context: Context) {
@@ -82,6 +102,36 @@ class MoodFaceLandmarkerHelper(
 
     fun resetSession() {
         frameMoods.clear()
+        baselineScores = FaceCalibrationManager.getBaselineBlendshapes(context)
+        ownerSignature = FaceCalibrationManager.getFaceSignature(context)
+    }
+
+    private fun extractGeometricSignature(landmarks: List<com.google.mediapipe.tasks.components.containers.NormalizedLandmark>?): FaceCalibrationManager.FaceSignature {
+        if (landmarks == null || landmarks.isEmpty()) {
+            return FaceCalibrationManager.FaceSignature(FloatArray(0))
+        }
+
+        // Landmark 1 is Nose Tip
+        val nose = landmarks.getOrNull(1) ?: landmarks[0]
+        val noseX = nose.x()
+        val noseY = nose.y()
+        val noseZ = nose.z()
+
+        // Landmark 159 (Left pupil) and 386 (Right pupil)
+        val leftEye = landmarks.getOrNull(159) ?: landmarks[0]
+        val rightEye = landmarks.getOrNull(386) ?: landmarks[0]
+        val eyeDist = Math.hypot((leftEye.x() - rightEye.x()).toDouble(), (leftEye.y() - rightEye.y()).toDouble()).toFloat().coerceAtLeast(0.001f)
+
+        val vector = FloatArray(landmarks.size * 3)
+        var idx = 0
+        for (lm in landmarks) {
+            // Translate origin to nose tip, then scale by eye distance for scale & translation invariance
+            vector[idx++] = (lm.x() - noseX) / eyeDist
+            vector[idx++] = (lm.y() - noseY) / eyeDist
+            vector[idx++] = (lm.z() - noseZ) / eyeDist
+        }
+
+        return FaceCalibrationManager.FaceSignature(vector)
     }
 
     private fun handleResult(result: FaceLandmarkerResult, inputImage: MPImage) {
@@ -89,11 +139,35 @@ class MoodFaceLandmarkerHelper(
         if (!blendshapeOptional.isPresent) return
 
         val face = blendshapeOptional.get().firstOrNull() ?: return
+        
+        // 1. Identity Verification
+        val landmarks = result.faceLandmarks()
+        if (!landmarks.isNullOrEmpty() && landmarks[0].isNotEmpty()) {
+            val liveSignature = extractGeometricSignature(landmarks[0])
+            lastSignature = liveSignature
+            
+            if (!isCalibrationMode && ownerSignature != null) {
+                val isOwner = FaceCalibrationManager.verifyIdentity(liveSignature, ownerSignature!!)
+                if (!isOwner) {
+                    onError("Face mismatch. Only the owner can use the scanner.")
+                    return // Block processing
+                }
+            }
+        }
 
+        val rawMap = mutableMapOf<String, Float>()
         val scores = mutableMapOf<String, Float>()
         for (c in face) {
-            scores[c.categoryName()] = c.score()
+            val rawScore = c.score()
+            rawMap[c.categoryName()] = rawScore
+            
+            val baseScore = if (isCalibrationMode) 0f else (baselineScores[c.categoryName()] ?: 0f)
+            // Baseline normalization: Subtract resting face muscle tension
+            val adjustedScore = Math.max(0f, rawScore - baseScore)
+            scores[c.categoryName()] = adjustedScore
         }
+
+        lastRawScores = rawMap
 
         logBlendshapes(scores)
 

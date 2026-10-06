@@ -28,9 +28,9 @@ class MoodMixAdapter(
         val item = items[position]
         val isSelected = item.mood.equals(selectedMood, ignoreCase = true)
         
-        holder.tvMixLabel.text = "${item.mood.replaceFirstChar { it.uppercase() }} Mix"
-        holder.tvMixMood.text = item.mood.uppercase()
-        holder.tvMixStats.text = "${item.songs.size} songs"
+        holder.tvMixLabel.text = item.displayTitle
+        holder.tvMixMood.text = "${item.emoji} ${item.mood.uppercase()}"
+        holder.tvMixStats.text = if (item.songs.isNotEmpty()) "${item.songs.size} songs" else "Tap for Fresh Mix"
         
         if (isSelected) {
             holder.mixCardRoot.setBackgroundResource(R.drawable.bg_chip_selected)
@@ -41,6 +41,9 @@ class MoodMixAdapter(
         holder.itemView.setOnClickListener { onClick(item) }
         
         val color = when(item.mood.lowercase()) {
+            "in_love" -> "#FF8EA8"
+            "hype" -> "#FFB74D"
+            "hugot" -> "#64B5F6"
             "happy" -> "#FFD54F"
             "sad" -> "#5DAEFF"
             "angry" -> "#FF5A5A"

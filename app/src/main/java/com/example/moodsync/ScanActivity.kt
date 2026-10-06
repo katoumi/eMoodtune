@@ -16,6 +16,7 @@ import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
@@ -117,29 +118,55 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
         cameraExecutor = Executors.newSingleThreadExecutor()
         setupFaceDetector()
 
+        val isCalibrationMode = intent.getBooleanExtra("is_calibration_mode", false)
+
         moodFaceLandmarkerHelper = MoodFaceLandmarkerHelper(
             context = this,
             onMoodResult = { result ->
                 runOnUiThread {
                     if (!hasProcessedResult && analysisEnabled) {
-                        finalizeScanWithMood(result.mood.lowercase())
+                        if (isCalibrationMode) {
+                            val saved = moodFaceLandmarkerHelper.saveCurrentAsCalibration()
+                            if (saved) {
+                                hasProcessedResult = true
+                                Toast.makeText(this, "Face ID Registered & Calibrated!", Toast.LENGTH_LONG).show()
+                                finish()
+                            } else {
+                                updateScanState(ScanState.ERROR, "Failed to capture baseline. Try again.")
+                                resetToIdleAfterDelay()
+                            }
+                        } else {
+                            finalizeScanWithMood(result.mood.lowercase())
+                        }
                     }
                 }
             },
             onError = { error ->
                 runOnUiThread {
                     if (!hasProcessedResult && analysisEnabled) {
-                        val fallbackFace = latestDetectedFace
-                        if (fallbackFace != null) {
-                            finalizeScanWithMood(detectEmotionFromFace(fallbackFace))
-                        } else {
+                        if (isCalibrationMode) {
                             updateScanState(ScanState.ERROR, error)
                             resetToIdleAfterDelay()
+                        } else {
+                            val fallbackFace = latestDetectedFace
+                            if (fallbackFace != null && !error.contains("mismatch")) {
+                                finalizeScanWithMood(detectEmotionFromFace(fallbackFace))
+                            } else {
+                                updateScanState(ScanState.ERROR, error)
+                                resetToIdleAfterDelay()
+                            }
                         }
                     }
                 }
             }
         )
+
+        moodFaceLandmarkerHelper.isCalibrationMode = isCalibrationMode
+
+        if (isCalibrationMode) {
+            tvFaceMoodTitle.text = "Calibrating Face ID"
+            tvStatus.text = "Hold a neutral expression to register"
+        }
 
         showIdleUI()
         ProfileImageLoader.load(imgProfile)
@@ -523,7 +550,7 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
 
         updateScanState(
             ScanState.RESULT_READY,
-            "Detected: ${mood.replaceFirstChar { it.uppercase() }}"
+            "Detected: ${mood.replace("_", " ").split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }}"
         )
 
         handler.postDelayed({

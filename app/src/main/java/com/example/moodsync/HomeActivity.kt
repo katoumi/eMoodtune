@@ -218,6 +218,7 @@ class HomeActivity : AppCompatActivity() {
         setupStickyPlayer()
         setupSaveCurrentTrackButtons()
         setupRefreshButton()
+        setupDailyMoodPrompt()
 
         readMoodFromIntent(intent)
         
@@ -259,6 +260,50 @@ class HomeActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    private fun checkDailyMoodPromptVisibility() {
+        val prefs = getSharedPreferences(PREF_HOME_STATE, MODE_PRIVATE)
+        val lastPromptTime = prefs.getLong("last_mood_prompt_time", 0L)
+        val now = System.currentTimeMillis()
+        val thirtyMinutes = 30 * 60 * 1000L // Increased frequency: prompt every 30 minutes on return/open
+
+        if (now - lastPromptTime > thirtyMinutes) {
+            binding.cardDailyMoodPrompt.visibility = View.VISIBLE
+        } else {
+            binding.cardDailyMoodPrompt.visibility = View.GONE
+        }
+    }
+
+    private fun setupDailyMoodPrompt() {
+        checkDailyMoodPromptVisibility()
+
+        binding.btnCloseMoodPrompt.setOnClickListener {
+            binding.cardDailyMoodPrompt.visibility = View.GONE
+            getSharedPreferences(PREF_HOME_STATE, MODE_PRIVATE)
+                .edit()
+                .putLong("last_mood_prompt_time", System.currentTimeMillis())
+                .apply()
+        }
+
+        val onEmojiClick: (String, String) -> Unit = { moodKey, moodLabel ->
+            binding.cardDailyMoodPrompt.visibility = View.GONE
+            getSharedPreferences(PREF_HOME_STATE, MODE_PRIVATE)
+                .edit()
+                .putLong("last_mood_prompt_time", System.currentTimeMillis())
+                .apply()
+
+            viewModel.performSearch(moodKey)
+            Toast.makeText(this, "Feeling $moodLabel! Updating recommendations...", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.chipEmojiHappy.setOnClickListener { onEmojiClick("happy", "Happy") }
+        binding.chipEmojiInLove.setOnClickListener { onEmojiClick("in_love", "In Love") }
+        binding.chipEmojiSad.setOnClickListener { onEmojiClick("sad", "Sad") }
+        binding.chipEmojiAngry.setOnClickListener { onEmojiClick("angry", "Angry") }
+        binding.chipEmojiCalm.setOnClickListener { onEmojiClick("calm", "Calm") }
+        binding.chipEmojiHype.setOnClickListener { onEmojiClick("hype", "Hype") }
+        binding.chipEmojiHugot.setOnClickListener { onEmojiClick("hugot", "Hugot") }
     }
 
     private fun setupObservers() {
@@ -375,6 +420,8 @@ class HomeActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        checkDailyMoodPromptVisibility()
 
         // Reset prompt timer when re-entering the app to prevent instant popups
         sessionStartTime = System.currentTimeMillis()
@@ -1332,6 +1379,7 @@ class HomeActivity : AppCompatActivity() {
                 // Only reset if we were previously playing a different track
                 NowPlayingState.currentTrackMood = null 
                 NowPlayingState.hasLoggedCurrentTrack = false 
+                NowPlayingState.activeSessionId = "" // Crucial fix for skipped songs retaining old Session IDs
                 
                 getSharedPreferences(PREF_HOME_STATE, MODE_PRIVATE).edit()
                     .putString(KEY_LAST_LOGGED_URI, "")
@@ -2051,8 +2099,8 @@ class HomeActivity : AppCompatActivity() {
     private fun formatMood(mood: String): String {
         val cleanMood = SpotifyMoodQueryBuilder.normalizeMood(mood)
 
-        return cleanMood.replaceFirstChar {
-            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+        return cleanMood.replace("_", " ").split(" ").joinToString(" ") {
+            it.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() }
         }
     }
 

@@ -1,6 +1,6 @@
 # eMoodtune (MoodSync)
 
-eMoodtune is an AI-powered, emotion-adaptive music recommendation and mood forecasting Android application built using Kotlin, Jetpack Compose / ViewBinding, MediaPipe Face Landmarker AI, Spotify App Remote SDK, and Firebase.
+eMoodtune is an AI-powered, emotion-adaptive music recommendation and mood forecasting Android application built using Kotlin, ViewBinding, MediaPipe Face Landmarker AI, Spotify App Remote SDK, and Firebase.
 
 ---
 
@@ -40,5 +40,17 @@ SPOTIFY_CLIENT_ID=YOUR_SPOTIFY_CLIENT_ID
 
 ---
 
-## 📄 License & Intellectual Property
-This repository contains capstone project source code. All rights reserved.
+## ⚖️ License & Copyright
+
+**© 2026 Mhiko. All Rights Reserved.**
+
+This repository and its contents are the intellectual property of Mhiko. This code is provided publicly for portfolio, demonstration, and educational evaluation purposes only.
+
+You may **NOT**:
+* Copy, reproduce, or distribute this code.
+* Publish, display, or perform this code.
+* Modify or create derivative works from this code.
+* Sell, offer for sale, or monetize any part of this software.
+* Deploy or operate this software for public or commercial use.
+
+If you are interested in collaborating, licensing, or utilizing components of this project, please contact the repository owner directly.

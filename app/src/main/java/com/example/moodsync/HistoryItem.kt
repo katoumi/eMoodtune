@@ -33,8 +33,3 @@ data class MoodMixItem(
     val emotion: String,
     val playCount: Int
 )
-
-data class MoodMix(
-    val mood: String,
-    val songs: List<MoodMixItem>
-)

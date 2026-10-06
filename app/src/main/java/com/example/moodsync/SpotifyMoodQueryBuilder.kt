@@ -19,6 +19,15 @@ object SpotifyMoodQueryBuilder {
         // Also inject explicitly tracked preferences
         val preferredArtists = UserPreferenceManager.getPreferredArtists(context)
         val preferredGenres = UserPreferenceManager.getPreferredGenres(context)
+            .filter { genre ->
+                // Filter out rap/hip-hop from preferred genres when seeking mood regulation (sad/angry/calm)
+                if (normalizedMood == "sad" || normalizedMood == "angry" || normalizedMood == "calm") {
+                    val g = genre.lowercase()
+                    !g.contains("rap") && !g.contains("hip hop") && !g.contains("trap") && !g.contains("drill")
+                } else {
+                    true
+                }
+            }
         
         val moodGenreTag = getMoodGenreTag(normalizedMood)
         
@@ -86,6 +95,17 @@ object SpotifyMoodQueryBuilder {
         val mood = rawMood.trim().lowercase(Locale.getDefault())
 
         return when {
+            mood.contains("in_love") ||
+                    mood.contains("love") ||
+                    mood.contains("romantic") -> "in_love"
+
+            mood.contains("hype") ||
+                    mood.contains("workout") ||
+                    mood.contains("energy") -> "hype"
+
+            mood.contains("hugot") ||
+                    mood.contains("heartbreak") -> "hugot"
+
             mood.contains("happy") ||
                     mood.contains("joy") ||
                     mood.contains("excited") ||
@@ -113,20 +133,18 @@ object SpotifyMoodQueryBuilder {
     }
 
     fun displayMood(rawMood: String): String {
-        return when (normalizeMood(rawMood)) {
-            "happy" -> "happy"
-            "sad" -> "sad"
-            "angry" -> "angry"
-            "calm" -> "calm"
-            else -> "calm"
-        }
+        val norm = normalizeMood(rawMood).replace("_", " ")
+        return norm.split(" ").joinToString(" ") { it.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() } }
     }
 
     private fun getMoodGenreTag(mood: String): String {
         return when (normalizeMood(mood)) {
+            "in_love" -> "romantic love songs pop"
+            "hype" -> "workout high energy pop rock"
+            "hugot" -> "emotional opm hugot acoustic"
             "happy" -> "upbeat feel good pop"
-            "sad" -> "emotional acoustic indie"
-            "angry" -> "high energy alternative rock"
+            "sad" -> "comforting acoustic pop" // REGULATION: Lift mood
+            "angry" -> "calming soft acoustic" // REGULATION: Soothe anger
             "calm" -> "chill acoustic bedroom pop"
             else -> "chill indie"
         }
@@ -145,18 +163,25 @@ object SpotifyMoodQueryBuilder {
             else -> ""
         }
 
+        // REGULATION: Update base queries to target the intervention goal
         val opmQueries = when (normalizedMood) {
+            "in_love" -> listOf("Zack Tabudlo love", "Moira love songs", "Arthur Nery romantic", "TJ Monterde", "OPM love songs")
+            "hype" -> listOf("SB19 hype", "Parokya ni Edgar rock", "Kamikazee energetic", "BGYO dance", "OPM workout")
+            "hugot" -> listOf("Ben&Ben hugot", "December Avenue heartbreak", "Moira Dela Torre sad", "Silent Sanctuary")
             "happy" -> listOf("SB19 upbeat", "Sarah Geronimo pop", "Parokya ni Edgar", "Eraserheads happy", "OPM upbeat", "Itchyworms")
-            "sad" -> listOf("Ben&Ben hugot", "Moira Dela Torre sad", "December Avenue", "Arthur Nery", "OPM sad acoustic", "Hugot hits")
-            "angry" -> listOf("Kamikazee rock", "Rivermaya energy", "Slapshock", "Greyhoundz", "Pinoy rock intense", "OPM rock")
+            "sad" -> listOf("Ben&Ben comforting", "OPM uplifting", "Zack Tabudlo feel good", "Arthur Nery soft", "OPM chill hits")
+            "angry" -> listOf("Clara Benin calm", "Adie acoustic", "Reese Lansangan", "OPM relaxing", "Tagalog chill acoustic")
             "calm" -> listOf("Clara Benin calm", "Adie acoustic", "Reese Lansangan", "Unique Salonga", "OPM chill", "Tagalog acoustic")
             else -> listOf("OPM top hits", "Pinoy pop", "New Music Friday Philippines")
         }
 
         val intlQueries = when (normalizedMood) {
+            "in_love" -> listOf("romantic indie pop", "love songs acoustic", "sweet pop hits", "laufey romantic")
+            "hype" -> listOf("workout hype pop", "high energy pop punk", "dance hype hits", "gym motivation")
+            "hugot" -> listOf("melancholy heartbreak", "emotional acoustic indie", "sad love songs")
             "happy" -> listOf("feel good indie pop", "upbeat pop hits", "dance pop summer", "bright indie pop", "dayglow indie")
-            "sad" -> listOf("sad indie acoustic", "emotional indie songs", "heartbreak acoustic", "melancholy bedroom pop")
-            "angry" -> listOf("alternative rock high energy", "punk rock energy", "pop punk rage", "workout rock intense")
+            "sad" -> listOf("comforting acoustic", "uplifting pop", "feel good chill", "warm acoustic indie")
+            "angry" -> listOf("soothing acoustic", "calm lofi beats", "relaxing ambient", "soft piano chill")
             "calm" -> listOf("chill acoustic indie", "soft bedroom pop", "calm lofi beats", "relaxing indie acoustic")
             else -> listOf("viral hits global", "global top 50", "new music friday")
         }

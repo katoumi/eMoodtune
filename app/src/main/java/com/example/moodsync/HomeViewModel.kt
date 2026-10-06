@@ -44,12 +44,30 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private var searchJob: Job? = null
 
+    private fun getRegulationLabel(mood: String): String {
+        return when (SpotifyMoodQueryBuilder.normalizeMood(mood)) {
+            "in_love" -> "Romantic"
+            "hype" -> "High Energy"
+            "hugot" -> "Heartbreak Hugot"
+            "sad" -> "Comforting"
+            "angry" -> "Soothing"
+            else -> formatMood(mood)
+        }
+    }
+
     fun loadRecommendations(emotion: String, finalMood: String, isManual: Boolean = false) {
         val cached = MoodRecommendationCache.get(finalMood)
+        val regulationGoal = getRegulationLabel(finalMood)
+        
         if (cached != null) {
             _recommendationBundle.value = RecommendationBundle(cached.songs, cached.trackCache)
             _isLoading.value = false
-            _moodLabel.value = "Detected: ${formatMood(emotion)} | Smart Mood: ${formatMood(finalMood)}"
+            
+            if (isManual) {
+                _moodLabel.value = "Manual Mood: ${formatMood(emotion)} | Goal: $regulationGoal"
+            } else {
+                _moodLabel.value = "Detected: ${formatMood(emotion)} | Goal: $regulationGoal"
+            }
             
             // Still refresh in background if cache is old (> 10 mins)
             val now = System.currentTimeMillis()
@@ -75,7 +93,11 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 _recommendationBundle.value = RecommendationBundle(result.songs, result.trackCache)
-                _moodLabel.value = "Detected: ${formatMood(emotion)} | Smart Mood: ${formatMood(finalMood)}"
+                if (isManual) {
+                    _moodLabel.value = "Manual Mood: ${formatMood(emotion)} | Goal: $regulationGoal"
+                } else {
+                    _moodLabel.value = "Detected: ${formatMood(emotion)} | Goal: $regulationGoal"
+                }
                 
                 // Save to persistent cache
                 MoodRecommendationCache.set(
@@ -139,6 +161,9 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     private fun detectMoodKeyword(query: String): String? {
         val q = query.lowercase()
         return when {
+            q.contains("in_love") || q.contains("love") || q.contains("romantic") -> "in_love"
+            q.contains("hype") || q.contains("workout") || q.contains("energy") -> "hype"
+            q.contains("hugot") || q.contains("heartbreak") -> "hugot"
             q == "happy" || q == "joy" -> "happy"
             q == "sad" || q == "down" -> "sad"
             q == "angry" || q == "mad" -> "angry"
@@ -195,6 +220,6 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun formatMood(mood: String): String {
-        return mood.replaceFirstChar { it.uppercase() }
+        return mood.replace("_", " ").split(" ").joinToString(" ") { it.replaceFirstChar { c -> c.uppercase() } }
     }
 }

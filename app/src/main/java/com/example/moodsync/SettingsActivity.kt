@@ -4,8 +4,13 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 
@@ -14,6 +19,8 @@ class SettingsActivity : AppCompatActivity() {
     private lateinit var imgProfileTop: ImageView
 
     private lateinit var cardAccountInfo: LinearLayout
+    private lateinit var cardFaceCalibration: LinearLayout
+    private lateinit var tvCalibrationStatus: TextView
     private lateinit var cardFaq: LinearLayout
     private lateinit var cardFeedback: LinearLayout
     private lateinit var cardLogout: LinearLayout
@@ -34,12 +41,15 @@ class SettingsActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         ProfileImageLoader.load(imgProfileTop)
+        updateCalibrationStatus()
     }
 
     private fun bindViews() {
         imgProfileTop = findViewById(R.id.imgProfileTop)
 
         cardAccountInfo = findViewById(R.id.cardAccountInfo)
+        cardFaceCalibration = findViewById(R.id.cardFaceCalibration)
+        tvCalibrationStatus = findViewById(R.id.tvCalibrationStatus)
         cardFaq = findViewById(R.id.cardFaq)
         cardFeedback = findViewById(R.id.cardFeedback)
         cardLogout = findViewById(R.id.cardLogout)
@@ -49,6 +59,16 @@ class SettingsActivity : AppCompatActivity() {
         navProfile = findViewById(R.id.navProfile)
     }
 
+    private fun updateCalibrationStatus() {
+        if (FaceCalibrationManager.isCalibrated(this)) {
+            tvCalibrationStatus.text = "Status: Registered & Calibrated"
+            tvCalibrationStatus.setTextColor(android.graphics.Color.parseColor("#80FF90")) // Soft Green
+        } else {
+            tvCalibrationStatus.text = "Status: Not Registered (Tap to Register)"
+            tvCalibrationStatus.setTextColor(android.graphics.Color.parseColor("#B9A9D6"))
+        }
+    }
+
     private fun setupCards() {
         imgProfileTop.setOnClickListener {
             startActivity(Intent(this, AccountInfoActivity::class.java))
@@ -56,6 +76,10 @@ class SettingsActivity : AppCompatActivity() {
 
         cardAccountInfo.setOnClickListener {
             startActivity(Intent(this, AccountInfoActivity::class.java))
+        }
+
+        cardFaceCalibration.setOnClickListener {
+            showFaceCalibrationDialog()
         }
 
         cardFaq.setOnClickListener {
@@ -69,6 +93,58 @@ class SettingsActivity : AppCompatActivity() {
         cardLogout.setOnClickListener {
             showLogoutConfirmation()
         }
+    }
+
+    private fun showFaceCalibrationDialog() {
+        val biometricManager = BiometricManager.from(this)
+        val canAuthenticate = biometricManager.canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or 
+            BiometricManager.Authenticators.BIOMETRIC_WEAK
+        )
+
+        if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
+            val executor = ContextCompat.getMainExecutor(this)
+            val biometricPrompt = BiometricPrompt(this, executor,
+                object : BiometricPrompt.AuthenticationCallback() {
+                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                        super.onAuthenticationSucceeded(result)
+                        startCalibrationScan()
+                    }
+
+                    override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                        super.onAuthenticationError(errorCode, errString)
+                        Toast.makeText(this@SettingsActivity, "Authentication failed: $errString", Toast.LENGTH_SHORT).show()
+                    }
+                })
+
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Hardware Biometric Authentication")
+                .setSubtitle("Confirm your identity before calibrating Face ID")
+                .setNegativeButtonText("Cancel")
+                .build()
+
+            biometricPrompt.authenticate(promptInfo)
+        } else {
+            // Hardware Biometric not available, proceed directly to camera 3D vector calibration
+            startCalibrationScan()
+        }
+    }
+
+    private fun startCalibrationScan() {
+        AlertDialog.Builder(this)
+            .setTitle("Register / Calibrate Face ID")
+            .setMessage("Position your face in front of the camera with a natural, neutral expression.\n\nThis will save your 1434-dimensional 3D spatial vector to verify your identity and calibrate your resting face for maximum mood accuracy.")
+            .setPositiveButton("Start Camera Scan") { dialog, _ ->
+                dialog.dismiss()
+                val intent = Intent(this, ScanActivity::class.java).apply {
+                    putExtra("is_calibration_mode", true)
+                }
+                startActivity(intent)
+            }
+            .setNegativeButton("Cancel") { dialog, _ ->
+                dialog.dismiss()
+            }
+            .show()
     }
 
     private fun logoutUser() {

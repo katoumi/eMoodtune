@@ -20,11 +20,22 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
     val playlists: LiveData<List<PlaylistMetadata>> = playlistMetadataDao.getAllPlaylists().asLiveData()
     
     private val rawMoodMixes: LiveData<List<MoodMixItem>> = database.historyDao().getMoodMixes().asLiveData()
+
+    private val defaultFeelingMixes = listOf(
+        MoodMix(mood = "in_love", displayTitle = "In Love?", emoji = "🥰"),
+        MoodMix(mood = "hype", displayTitle = "Feeling Hype?", emoji = "⚡"),
+        MoodMix(mood = "calm", displayTitle = "Need to Chill?", emoji = "🧘"),
+        MoodMix(mood = "hugot", displayTitle = "Heartbroken?", emoji = "🌧️"),
+        MoodMix(mood = "happy", displayTitle = "Feel Good Hits", emoji = "😄")
+    )
     
     val groupedMoodMixes: LiveData<List<MoodMix>> = rawMoodMixes.switchMap { items ->
-        val grouped = items.groupBy { it.emotion.lowercase() }
-            .map { (mood, songs) -> MoodMix(mood, songs) }
-        MutableLiveData(grouped)
+        val historyGrouped = items.groupBy { it.emotion.lowercase() }
+        val result = defaultFeelingMixes.map { defaultMix ->
+            val songs = historyGrouped[defaultMix.mood.lowercase()] ?: emptyList()
+            defaultMix.copy(songs = songs)
+        }
+        MutableLiveData(result)
     }
 
     private val _selectedPlaylistId = MutableLiveData<Long?>(1L)
@@ -33,30 +44,14 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
     private val _selectedMoodName = MutableLiveData<String?>(null)
     val selectedMoodName: LiveData<String?> = _selectedMoodName
 
+    private val _dynamicMixItems = MutableLiveData<List<PlaylistItem>>(emptyList())
+
     val playlistItems: LiveData<List<PlaylistItem>> = _selectedPlaylistId.switchMap { id ->
         if (id != null) {
             playlistDao.getPlaylistById(id).asLiveData()
         } else {
-            // If manual playlist ID is null, we check for mood selection
-            _selectedMoodName.switchMap { mood ->
-                if (mood != null) {
-                    rawMoodMixes.switchMap { items ->
-                        val moodSongs = items.filter { it.emotion.equals(mood, ignoreCase = true) }
-                            .map { 
-                                PlaylistItem(
-                                    title = it.songTitle,
-                                    artist = it.artist,
-                                    duration = it.duration,
-                                    emotion = it.emotion,
-                                    playlistId = -1L // Special ID for mixes
-                                )
-                            }
-                        MutableLiveData(moodSongs)
-                    }
-                } else {
-                    MutableLiveData(emptyList())
-                }
-            }
+            // If manual playlist ID is null, return dynamic feeling mix items
+            _dynamicMixItems
         }
     }
 
@@ -65,9 +60,31 @@ class PlaylistViewModel(application: Application) : AndroidViewModel(application
         _selectedPlaylistId.value = id
     }
 
+    @androidx.camera.core.ExperimentalGetImage
     fun selectMoodMix(mood: String) {
         _selectedPlaylistId.value = null
         _selectedMoodName.value = mood
+
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = SpotifyBackedRecommendationEngine(getApplication()).getRecommendations(
+                    currentMood = mood,
+                    timeOfDay = "daytime",
+                    limit = 10
+                )
+                val playlistItems = result.songs.map { song ->
+                    PlaylistItem(
+                        title = song.title,
+                        artist = song.artist,
+                        duration = song.duration,
+                        emotion = mood,
+                        playlistId = -1L
+                    )
+                }
+                _dynamicMixItems.postValue(playlistItems.shuffled())
+            } catch (_: Exception) {
+            }
+        }
     }
 
     fun createPlaylist(name: String) {

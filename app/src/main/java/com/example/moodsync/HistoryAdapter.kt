@@ -115,8 +115,8 @@ class HistoryAdapter(
     }
 
     private fun formatMood(mood: String): String {
-        return mood.replaceFirstChar {
-            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+        return mood.replace("_", " ").split(" ").joinToString(" ") {
+            it.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() }
         }
     }
 

@@ -244,6 +244,27 @@ class SpotifyBackedRecommendationEngine(
         val artist = candidate.artist.lowercase(Locale.getDefault())
 
         return when (normalizedMood) {
+            "in_love" -> when {
+                containsAny(title, listOf("love", "forever", "always", "yours", "sweet", "heart", "mine", "kiss", "marry", "angel", "pasilyo", "palagi")) -> 20.0
+                containsAny(artist, listOf("laufey", "zack tabudlo", "moira", "arthur nery", "tj monterde", "stephen sanchez", "sunkissed lola")) -> 16.0
+                containsAny(title, listOf("rage", "fight", "sad", "die", "kill", "pain", "break")) -> -15.0
+                else -> 10.0
+            }
+
+            "hype" -> when {
+                containsAny(title, listOf("hype", "dance", "run", "power", "fire", "gento", "pantropiko", "party", "jump", "bang", "light")) -> 20.0
+                containsAny(artist, listOf("sb19", "bini", "the weeknd", "bruno mars", "paramore", "olivia rodrigo", "parokya")) -> 16.0
+                containsAny(title, listOf("sleep", "calm", "sad", "cry", "quiet", "slow")) -> -15.0
+                else -> 10.0
+            }
+
+            "hugot" -> when {
+                containsAny(title, listOf("hugot", "sana", "dati", "paubaya", "luha", "sakit", "iwan", "glimpse", "night we met", "as the world")) -> 20.0
+                containsAny(artist, listOf("ben&ben", "december avenue", "moira", "silent sanctuary", "joji", "munimuni", "zack tabudlo")) -> 16.0
+                containsAny(title, listOf("party", "dance", "hype", "workout", "jump")) -> -15.0
+                else -> 10.0
+            }
+
             "happy" -> when {
                 containsAny(title, listOf("sad", "cry", "lonely", "hurt", "heartbreak", "rage", "fight")) -> -16.0
                 containsAny(title, listOf("dance", "sun", "summer", "good", "smile", "party", "fun")) -> 18.0
@@ -251,22 +272,25 @@ class SpotifyBackedRecommendationEngine(
                 else -> 8.0
             }
 
+            // REGULATION: When sad, penalize depressing or rap/trap songs and boost comforting/uplifting ones
             "sad" -> when {
-                containsAny(title, listOf("party", "dance", "rage", "fight", "hype")) -> -12.0
-                containsAny(title, listOf("sad", "alone", "cry", "heart", "hurt", "blue", "tears", "lost")) -> 18.0
-                containsAny(artist, listOf("laufey", "mitski", "phoebe bridgers", "lord huron", "moira")) -> 14.0
+                containsAny(title, listOf("rap", "hip hop", "trap", "drill", "freestyle", "party", "dance", "rage", "fight", "hype")) -> -20.0 // Avoid rap/hype
+                containsAny(title, listOf("sad", "cry", "heartbreak", "depress")) -> -5.0 // Avoid wallowing
+                containsAny(title, listOf("comfort", "better", "sun", "light", "heal", "hope", "love", "smile")) -> 18.0
+                containsAny(artist, listOf("clairo", "john mayer", "ben&ben", "ed sheeran", "coldplay")) -> 14.0
                 else -> 8.0
             }
 
+            // REGULATION: When angry, penalize aggressive or rap/trap songs and boost soothing ones
             "angry" -> when {
-                containsAny(title, listOf("sleep", "calm", "lullaby", "soft", "peaceful")) -> -14.0
-                containsAny(title, listOf("rage", "fight", "brutal", "bad", "misery", "decode", "loud")) -> 18.0
-                containsAny(artist, listOf("paramore", "olivia rodrigo", "arctic monkeys", "billie eilish")) -> 14.0
-                else -> 9.0
+                containsAny(title, listOf("rap", "hip hop", "trap", "drill", "freestyle", "rage", "fight", "brutal", "bad", "misery", "loud", "kill")) -> -22.0 // Avoid rap/hype
+                containsAny(title, listOf("peace", "calm", "breathe", "soft", "quiet", "ocean", "slow")) -> 18.0
+                containsAny(artist, listOf("laufey", "wave to earth", "daniel caesar", "h.e.r.", "norah jones")) -> 14.0
+                else -> 8.0
             }
 
             "calm" -> when {
-                containsAny(title, listOf("rage", "fight", "party", "hype", "brutal")) -> -14.0
+                containsAny(title, listOf("rap", "hip hop", "trap", "drill", "freestyle", "rage", "fight", "party", "hype", "brutal")) -> -20.0
                 containsAny(title, listOf("soft", "moon", "night", "dream", "quiet", "slow", "acoustic")) -> 18.0
                 containsAny(artist, listOf("laufey", "wave to earth", "clairo", "keshi", "arthur nery", "daniel caesar")) -> 14.0
                 else -> 8.0
@@ -375,7 +399,12 @@ class SpotifyBackedRecommendationEngine(
             reasons.add("You replayed this before")
         }
 
-        reasons.add("Matches your $normalizedMood mood")
+        // REGULATION TEXT UPDATE
+        when (SpotifyMoodQueryBuilder.normalizeMood(mood)) {
+            "sad" -> reasons.add("To help lift your mood")
+            "angry" -> reasons.add("To help calm you down")
+            else -> reasons.add("Matches your $normalizedMood mood")
+        }
 
         if (timeOfDay.equals("night", ignoreCase = true)) {
             reasons.add("Fits night listening")
@@ -443,11 +472,14 @@ class SpotifyBackedRecommendationEngine(
     ): List<SpotifyMoodCandidate> {
         val preferredGenres = UserPreferenceManager.getPreferredGenres(context)
         
-        // Base mood parameters
+        // REGULATION LOGIC: Target audio features to actively lift or soothe mood
         val (baseValence, baseEnergy, baseGenres) = when (mood) {
-            "happy" -> Triple(0.92, 0.88, "happy,pop,dance")
-            "sad" -> Triple(0.08, 0.15, "sad,acoustic,emo")
-            "angry" -> Triple(0.25, 0.95, "alt-rock,metal,hardcore")
+            "in_love" -> Triple(0.85, 0.60, "romance,pop,acoustic")
+            "hype" -> Triple(0.80, 0.92, "dance,pop,work-out")
+            "hugot" -> Triple(0.20, 0.30, "acoustic,indie,sad")
+            "happy" -> Triple(0.92, 0.88, "happy,pop,dance") 
+            "sad" -> Triple(0.65, 0.45, "acoustic,pop,feel-good") // REGULATE: Uplifting/Comforting instead of depressing
+            "angry" -> Triple(0.60, 0.20, "ambient,chill,acoustic") // REGULATE: Soothing/Calming instead of aggressive
             "calm" -> Triple(0.75, 0.12, "ambient,piano,chill")
             else -> Triple(0.5, 0.5, "indie,pop")
         }

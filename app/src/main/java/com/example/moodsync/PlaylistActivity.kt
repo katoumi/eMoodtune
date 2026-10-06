@@ -67,7 +67,7 @@ class PlaylistActivity : AppCompatActivity() {
 
         viewModel.selectedMoodName.observe(this) { mood ->
             if (mood != null) {
-                binding.tvPlaylistTitle.text = "${mood.replaceFirstChar { it.uppercase() }} Mix"
+                binding.tvPlaylistTitle.text = "${SpotifyMoodQueryBuilder.displayMood(mood)} Mix"
                 mixAdapter.updateItems(viewModel.groupedMoodMixes.value ?: emptyList(), mood)
                 
                 // Clear manual playlist selection visually
