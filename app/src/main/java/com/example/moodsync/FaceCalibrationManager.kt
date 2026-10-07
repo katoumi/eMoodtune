@@ -13,15 +13,27 @@ object FaceCalibrationManager {
     private const val KEY_IS_CALIBRATED = "is_calibrated"
 
     data class FaceSignature(
-        val vector: FloatArray // 1434-element 3D normalized spatial landmark vector
+        val centerVector: FloatArray,
+        val leftVector: FloatArray = FloatArray(0),
+        val rightVector: FloatArray = FloatArray(0)
     ) {
+        // Backwards compatibility getter
+        val vector: FloatArray get() = centerVector
+
         fun toJson(): String {
-            val jsonArray = JSONArray()
-            for (v in vector) {
-                jsonArray.put(v.toDouble())
-            }
+            val centerArray = JSONArray()
+            for (v in centerVector) centerArray.put(v.toDouble())
+
+            val leftArray = JSONArray()
+            for (v in leftVector) leftArray.put(v.toDouble())
+
+            val rightArray = JSONArray()
+            for (v in rightVector) rightArray.put(v.toDouble())
+
             return JSONObject().apply {
-                put("vector", jsonArray)
+                put("centerVector", centerArray)
+                put("leftVector", leftArray)
+                put("rightVector", rightArray)
             }.toString()
         }
 
@@ -29,23 +41,35 @@ object FaceCalibrationManager {
             if (this === other) return true
             if (javaClass != other?.javaClass) return false
             other as FaceSignature
-            return vector.contentEquals(other.vector)
+            return centerVector.contentEquals(other.centerVector)
         }
 
         override fun hashCode(): Int {
-            return vector.contentHashCode()
+            return centerVector.contentHashCode()
         }
 
         companion object {
             fun fromJson(jsonStr: String): FaceSignature? {
                 return try {
                     val json = JSONObject(jsonStr)
-                    val jsonArray = json.getJSONArray("vector")
-                    val array = FloatArray(jsonArray.length())
-                    for (i in 0 until jsonArray.length()) {
-                        array[i] = jsonArray.getDouble(i).toFloat()
-                    }
-                    FaceSignature(array)
+                    
+                    // Support new format or fallback to single vector
+                    if (json.has("centerVector")) {
+                        val centerArr = json.getJSONArray("centerVector")
+                        val center = FloatArray(centerArr.length()) { i -> centerArr.getDouble(i).toFloat() }
+
+                        val leftArr = json.optJSONArray("leftVector")
+                        val left = if (leftArr != null) FloatArray(leftArr.length()) { i -> leftArr.getDouble(i).toFloat() } else FloatArray(0)
+
+                        val rightArr = json.optJSONArray("rightVector")
+                        val right = if (rightArr != null) FloatArray(rightArr.length()) { i -> rightArr.getDouble(i).toFloat() } else FloatArray(0)
+
+                        FaceSignature(center, left, right)
+                    } else if (json.has("vector")) {
+                        val arr = json.getJSONArray("vector")
+                        val center = FloatArray(arr.length()) { i -> arr.getDouble(i).toFloat() }
+                        FaceSignature(center)
+                    } else null
                 } catch (e: Exception) {
                     null
                 }
@@ -103,29 +127,27 @@ object FaceCalibrationManager {
     }
 
     /**
-     * Calculates 1434-dimensional Cosine Similarity between live and owner facial vectors.
-     * Returns true if similarity >= 0.965f (96.5% 3D mesh match).
+     * Calculates Minimum Mean Absolute Landmark Distance (MAD) across registered angles.
+     * Same Person: Error < 0.038. Stranger/Mother: Error >= 0.055+.
+     * Returns true if min error < 0.042f.
      */
     fun verifyIdentity(liveSignature: FaceSignature, ownerSignature: FaceSignature): Boolean {
-        val similarity = calculateCosineSimilarity(liveSignature.vector, ownerSignature.vector)
-        Log.d("FaceVerification", "Live vs Owner 1434D Cosine Similarity: ${"%.4f".format(similarity)} (Threshold: 0.965)")
-        return similarity >= 0.965f
+        val errCenter = calculateMeanAbsoluteDistance(liveSignature.centerVector, ownerSignature.centerVector)
+        val errLeft = if (ownerSignature.leftVector.isNotEmpty()) calculateMeanAbsoluteDistance(liveSignature.centerVector, ownerSignature.leftVector) else errCenter
+        val errRight = if (ownerSignature.rightVector.isNotEmpty()) calculateMeanAbsoluteDistance(liveSignature.centerVector, ownerSignature.rightVector) else errCenter
+
+        val minError = minOf(errCenter, errLeft, errRight)
+        Log.d("FaceVerification", "Live vs Owner Min MAD Error: ${"%.4f".format(minError)} (Threshold: 0.042)")
+        
+        return minError < 0.042f
     }
 
-    fun calculateCosineSimilarity(v1: FloatArray, v2: FloatArray): Float {
-        if (v1.size != v2.size || v1.isEmpty()) return 0f
-        var dotProduct = 0.0
-        var normA = 0.0
-        var normB = 0.0
+    fun calculateMeanAbsoluteDistance(v1: FloatArray, v2: FloatArray): Float {
+        if (v1.size != v2.size || v1.isEmpty()) return 1.0f
+        var totalDiff = 0.0
         for (i in v1.indices) {
-            val a = v1[i].toDouble()
-            val b = v2[i].toDouble()
-            dotProduct += a * b
-            normA += a * a
-            normB += b * b
+            totalDiff += Math.abs((v1[i] - v2[i]).toDouble())
         }
-        val denominator = Math.sqrt(normA) * Math.sqrt(normB)
-        if (denominator == 0.0) return 0f
-        return (dotProduct / denominator).toFloat()
+        return (totalDiff / v1.size).toFloat()
     }
 }

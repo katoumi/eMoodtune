@@ -65,6 +65,11 @@ object MoodRecommendationCache {
         if (value) loading.add(mood) else loading.remove(mood)
     }
 
+    fun remove(context: Context, mood: String) {
+        cache.remove(mood)
+        persist(context)
+    }
+
     fun clear(context: Context) {
         cache.clear()
         loading.clear()

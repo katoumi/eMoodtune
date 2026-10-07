@@ -219,6 +219,7 @@ class HomeActivity : AppCompatActivity() {
         setupSaveCurrentTrackButtons()
         setupRefreshButton()
         setupDailyMoodPrompt()
+        setupAiAgentButton()
 
         readMoodFromIntent(intent)
         
@@ -304,6 +305,55 @@ class HomeActivity : AppCompatActivity() {
         binding.chipEmojiCalm.setOnClickListener { onEmojiClick("calm", "Calm") }
         binding.chipEmojiHype.setOnClickListener { onEmojiClick("hype", "Hype") }
         binding.chipEmojiHugot.setOnClickListener { onEmojiClick("hugot", "Hugot") }
+    }
+
+    private fun setupAiAgentButton() {
+        binding.fabAiAgent.setOnClickListener {
+            val dialog = AiAgentChatDialog(
+                context = this,
+                lifecycleOwner = this,
+                onTriggerAction = { action, extraQuery ->
+                    when (action) {
+                        "clear_queue" -> {
+                            QueueManager.clearQueue()
+                            Toast.makeText(this, "Playback queue cleared", Toast.LENGTH_SHORT).show()
+                        }
+                        "open_scanner" -> {
+                            val intent = Intent(this, ScanActivity::class.java)
+                            startActivity(intent)
+                        }
+                        "get_forecast" -> {
+                            val intent = Intent(this, ForecastActivity::class.java)
+                            startActivity(intent)
+                        }
+                        "play_specific_song" -> {
+                            extraQuery?.let { songQuery ->
+                                viewModel.performSearch(songQuery)
+                                searchHandler.postDelayed({
+                                    if (currentSongs.isNotEmpty()) {
+                                        selectSong(0)
+                                    }
+                                }, 1500)
+                            }
+                        }
+                        "recommend_music" -> {
+                            extraQuery?.let { mood ->
+                                // Clear old cache for this mood so the entire recommendation list refreshes completely
+                                MoodRecommendationCache.remove(this, mood)
+                                viewModel.loadRecommendations(mood, mood, isManual = true)
+                                // AUTO-PLAY: Automatically start playing the first recommended song inside eMoodtune!
+                                searchHandler.postDelayed({
+                                    if (currentSongs.isNotEmpty()) {
+                                        selectSong(0)
+                                    }
+                                }, 1500)
+                            }
+                        }
+                    }
+                }
+            )
+            dialog.show()
+        }
     }
 
     private fun setupObservers() {

@@ -39,8 +39,8 @@ class ForecastTimelineAdapter :
         fun bind(item: MoodPredictionEngine.ForecastPoint) {
             tvDayLabel.text = item.dayLabel
             tvTimeOfDay.text = item.timeOfDay
-            tvPredictedMood.text = item.predictedMood.replaceFirstChar {
-                if (it.isLowerCase()) it.titlecase() else it.toString()
+            tvPredictedMood.text = item.predictedMood.replace("_", " ").split(" ").joinToString(" ") {
+                it.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase() else c.toString() }
             }
             tvConfidence.text = "${item.confidenceLabel} ${(item.confidence * 100).toInt()}%"
             tvReason.text = item.reason

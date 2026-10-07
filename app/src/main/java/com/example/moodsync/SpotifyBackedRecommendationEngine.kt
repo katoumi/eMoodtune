@@ -421,6 +421,30 @@ class SpotifyBackedRecommendationEngine(
         val normalizedMood = SpotifyMoodQueryBuilder.normalizeMood(mood)
 
         val local = when (normalizedMood) {
+            "in_love" -> listOf(
+                HomeActivity.Song("Pasilyo", "SunKissed Lola", "4:30", "Matches your romantic mood"),
+                HomeActivity.Song("Palagi", "TJ Monterde", "4:15", "Matches your romantic mood"),
+                HomeActivity.Song("Until I Found You", "Stephen Sanchez", "2:57", "Matches your romantic mood"),
+                HomeActivity.Song("Pagsamo", "Zack Tabudlo", "4:42", "Matches your romantic mood"),
+                HomeActivity.Song("I Like Me Better", "Lauv", "3:17", "Matches your romantic mood")
+            )
+
+            "hype" -> listOf(
+                HomeActivity.Song("Gento", "SB19", "3:52", "Matches your high energy mood"),
+                HomeActivity.Song("Pantropiko", "BINI", "3:43", "Matches your high energy mood"),
+                HomeActivity.Song("Blinding Lights", "The Weeknd", "3:20", "Matches your high energy mood"),
+                HomeActivity.Song("Uptown Funk", "Mark Ronson ft. Bruno Mars", "4:30", "Matches your high energy mood"),
+                HomeActivity.Song("Can't Stop the Feeling!", "Justin Timberlake", "3:56", "Matches your high energy mood")
+            )
+
+            "hugot" -> listOf(
+                HomeActivity.Song("Kathang Isip", "Ben&Ben", "5:18", "Matches your hugot mood"),
+                HomeActivity.Song("Kung 'Di Rin Lang Ikaw", "December Avenue", "4:27", "Matches your hugot mood"),
+                HomeActivity.Song("Paubaya", "Moira Dela Torre", "4:24", "Matches your hugot mood"),
+                HomeActivity.Song("Sa Hindi Pag-Alala", "Munimuni", "5:22", "Matches your hugot mood"),
+                HomeActivity.Song("Glimpse of Us", "Joji", "3:53", "Matches your hugot mood")
+            )
+
             "happy" -> listOf(
                 HomeActivity.Song("Glue Song", "beabadoobee", "2:15", "Matches your happy mood"),
                 HomeActivity.Song("Sunflower", "Rex Orange County", "4:12", "Matches your happy mood"),

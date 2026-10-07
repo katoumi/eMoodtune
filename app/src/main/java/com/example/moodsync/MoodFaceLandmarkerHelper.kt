@@ -51,16 +51,35 @@ class MoodFaceLandmarkerHelper(
         ownerSignature = FaceCalibrationManager.getFaceSignature(context)
     }
 
+    private var centerSignature: FaceCalibrationManager.FaceSignature? = null
+    private var leftSignature: FaceCalibrationManager.FaceSignature? = null
+    private var rightSignature: FaceCalibrationManager.FaceSignature? = null
+
     fun saveCurrentAsCalibration(): Boolean {
         val sig = lastSignature
         val raw = lastRawScores
         if (sig != null && raw.isNotEmpty()) {
-            FaceCalibrationManager.saveCalibration(context, raw, sig)
+            val fullSig = FaceCalibrationManager.FaceSignature(
+                centerVector = centerSignature?.centerVector ?: sig.centerVector,
+                leftVector = leftSignature?.centerVector ?: sig.centerVector,
+                rightVector = rightSignature?.centerVector ?: sig.centerVector
+            )
+            FaceCalibrationManager.saveCalibration(context, raw, fullSig)
             baselineScores = raw
-            ownerSignature = sig
+            ownerSignature = fullSig
             return true
         }
         return false
+    }
+
+    fun captureAngle(stepIndex: Int): Boolean {
+        val sig = lastSignature ?: return false
+        when (stepIndex) {
+            0 -> centerSignature = sig
+            1 -> leftSignature = sig
+            2 -> rightSignature = sig
+        }
+        return true
     }
 
     private fun setup(context: Context) {

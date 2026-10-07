@@ -15,6 +15,8 @@ if (localPropertiesFile.exists()) {
     }
 }
 val spotifyClientId: String = localProperties.getProperty("SPOTIFY_CLIENT_ID") ?: "565aea63bf8d42e78ad3f81f3a6196c7"
+val geminiApiKey: String = localProperties.getProperty("GEMINI_API_KEY") ?: "AIzaSy_EMOODTUNE_GEMINI_KEY_PLACEHOLDER"
+val groqApiKey: String = localProperties.getProperty("GROQ_API_KEY") ?: "gsk_GROQ_KEY_PLACEHOLDER"
 
 android {
     namespace = "com.example.moodsync"
@@ -29,6 +31,8 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"$spotifyClientId\"")
+        buildConfigField("String", "GEMINI_API_KEY", "\"$geminiApiKey\"")
+        buildConfigField("String", "GROQ_API_KEY", "\"$groqApiKey\"")
     }
 
     buildFeatures {
@@ -107,6 +111,7 @@ dependencies {
     implementation("androidx.browser:browser:1.8.0")
     implementation(files("libs/spotify-app-remote-release-0.8.0.aar"))
     implementation("com.google.code.gson:gson:2.6.1")
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")

@@ -52,8 +52,8 @@ class FutureSongsAdapter(
         }
 
         private fun capitalize(text: String): String {
-            return text.replaceFirstChar {
-                if (it.isLowerCase()) it.titlecase() else it.toString()
+            return text.replace("_", " ").split(" ").joinToString(" ") {
+                it.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase() else c.toString() }
             }
         }
     }

@@ -77,6 +77,7 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
     private var isScanning = false
     private var analysisEnabled = false
     private var hasProcessedResult = false
+    private var isCalibrationMode = false
 
     private var lastMappedFaceRect: RectF? = null
     private var latestDetectedFace: Face? = null
@@ -118,7 +119,8 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
         cameraExecutor = Executors.newSingleThreadExecutor()
         setupFaceDetector()
 
-        val isCalibrationMode = intent.getBooleanExtra("is_calibration_mode", false)
+        isCalibrationMode = intent.getBooleanExtra("is_calibration_mode", false)
+        var calibrationStep = 0
 
         moodFaceLandmarkerHelper = MoodFaceLandmarkerHelper(
             context = this,
@@ -126,14 +128,32 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
                 runOnUiThread {
                     if (!hasProcessedResult && analysisEnabled) {
                         if (isCalibrationMode) {
-                            val saved = moodFaceLandmarkerHelper.saveCurrentAsCalibration()
-                            if (saved) {
-                                hasProcessedResult = true
-                                Toast.makeText(this, "Face ID Registered & Calibrated!", Toast.LENGTH_LONG).show()
-                                finish()
+                            moodFaceLandmarkerHelper.captureAngle(calibrationStep)
+                            calibrationStep++
+
+                            if (calibrationStep < 3) {
+                                analysisEnabled = false
+                                val nextPrompt = when (calibrationStep) {
+                                    1 -> "Step 2/3: Turn head slightly LEFT"
+                                    2 -> "Step 3/3: Turn head slightly RIGHT"
+                                    else -> "Hold position..."
+                                }
+                                updateScanState(ScanState.ANALYZING_EMOTION, nextPrompt)
+                                Toast.makeText(this, "Angle $calibrationStep/3 captured!", Toast.LENGTH_SHORT).show()
+
+                                handler.postDelayed({
+                                    analysisEnabled = true
+                                }, 1200)
                             } else {
-                                updateScanState(ScanState.ERROR, "Failed to capture baseline. Try again.")
-                                resetToIdleAfterDelay()
+                                val saved = moodFaceLandmarkerHelper.saveCurrentAsCalibration()
+                                if (saved) {
+                                    hasProcessedResult = true
+                                    Toast.makeText(this, "3-Angle Face ID Registered & Calibrated!", Toast.LENGTH_LONG).show()
+                                    finish()
+                                } else {
+                                    updateScanState(ScanState.ERROR, "Failed to capture 3D profile. Try again.")
+                                    resetToIdleAfterDelay()
+                                }
                             }
                         } else {
                             finalizeScanWithMood(result.mood.lowercase())
@@ -164,8 +184,8 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
         moodFaceLandmarkerHelper.isCalibrationMode = isCalibrationMode
 
         if (isCalibrationMode) {
-            tvFaceMoodTitle.text = "Calibrating Face ID"
-            tvStatus.text = "Hold a neutral expression to register"
+            tvFaceMoodTitle.text = "Registering Face ID (1/3)"
+            tvStatus.text = "Step 1/3: Look straight at camera"
         }
 
         showIdleUI()
@@ -394,17 +414,21 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
 
         handler.postDelayed({
             if (!hasProcessedResult) {
-                analysisEnabled = false
-
-                val fallbackFace = latestDetectedFace
-                if (fallbackFace != null) {
-                    finalizeScanWithMood(detectEmotionFromFace(fallbackFace))
-                } else {
-                    updateScanState(ScanState.NO_FACE_FOUND, "No stable mood detected. Try again.")
+                if (isCalibrationMode) {
+                    updateScanState(ScanState.ERROR, "Calibration timed out. Position face and try again.")
                     resetToIdleAfterDelay()
+                } else {
+                    analysisEnabled = false
+                    val fallbackFace = latestDetectedFace
+                    if (fallbackFace != null) {
+                        finalizeScanWithMood(detectEmotionFromFace(fallbackFace))
+                    } else {
+                        updateScanState(ScanState.NO_FACE_FOUND, "No stable mood detected. Try again.")
+                        resetToIdleAfterDelay()
+                    }
                 }
             }
-        }, 5000)
+        }, 10000)
     }
 
     private fun startCamera() {
@@ -538,7 +562,7 @@ class ScanActivity : AppCompatActivity(), SensorEventListener {
     }
 
     private fun finalizeScanWithMood(mood: String) {
-        if (hasProcessedResult) return
+        if (hasProcessedResult || isCalibrationMode) return
 
         hasProcessedResult = true
         analysisEnabled = false

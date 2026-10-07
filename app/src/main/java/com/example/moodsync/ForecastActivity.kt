@@ -694,8 +694,9 @@ class ForecastActivity : AppCompatActivity() {
     }
 
     private fun formatText(text: String): String {
-        return text.replaceFirstChar {
-            if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString()
+        val clean = SpotifyMoodQueryBuilder.normalizeMood(text)
+        return clean.replace("_", " ").split(" ").joinToString(" ") {
+            it.replaceFirstChar { c -> if (c.isLowerCase()) c.titlecase(Locale.getDefault()) else c.toString() }
         }
     }
 

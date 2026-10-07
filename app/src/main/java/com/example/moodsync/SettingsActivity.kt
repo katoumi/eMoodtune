@@ -173,7 +173,11 @@ class SettingsActivity : AppCompatActivity() {
         NowPlayingState.playbackPositionMs = 0L
         NowPlayingState.durationMs = 0L
 
-        // 5. Deep clean local user data
+        // 5. Deep clean local user data & privacy state
+        AiAgentChatDialog.clearSessionHistory()
+        FaceCalibrationManager.clearCalibration(this)
+        MoodRecommendationCache.clear(this)
+
         getSharedPreferences("moodsync_home_state", MODE_PRIVATE)
             .edit()
             .clear()
