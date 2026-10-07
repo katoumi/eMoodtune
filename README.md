@@ -4,7 +4,7 @@ eMoodtune is an AI-powered, emotion-adaptive music recommendation and mood forec
 
 ---
 
-##  Setup Instructions for Developers
+## Setup Instructions for Developers
 
 ### 1. Prerequisites
 * **Android Studio**: Jellyfish | 2023.3.1 or newer.
@@ -40,13 +40,13 @@ SPOTIFY_CLIENT_ID=YOUR_SPOTIFY_CLIENT_ID
 
 ---
 
-##  License & Copyright
+## License and Copyright
 
-**© 2026 eMoodtune (Mhiko). All Rights Reserved.**
+(c) 2026 eMoodtune (Mhiko). All Rights Reserved.
 
-This repository and its contents are the intellectual property of Mhiko. This code is provided publicly for portfolio, demonstration, and educational evaluation purposes only.
+This repository and its contents are the intellectual property of eMoodtune (Mhiko). This code is provided publicly for portfolio, demonstration, and educational evaluation purposes only.
 
-You may **NOT**:
+You may NOT:
 * Copy, reproduce, or distribute this code.
 * Publish, display, or perform this code.
 * Modify or create derivative works from this code.
